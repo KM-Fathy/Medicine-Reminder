@@ -1,18 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:medicine_reminder/models/medicines_model.dart';
 import 'package:medicine_reminder/Notification/flutter_local_notifications.dart';
+import 'package:medicine_reminder/models/medicines_model.dart';
 import 'package:medicine_reminder/pages/add_medicine_page.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show rootBundle;
-import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -21,7 +22,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => HomePageState();
 }
 
-class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   List<Medicine> medicines = [];
   List<bool> switchValues = [];
   List<bool> checkValues = [];
@@ -68,13 +70,16 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
     final checkedMedicineList = prefs.getStringList('checkedMedicines');
     final lockedStatus = prefs.getBool('isLocked') ?? false;
     final savedCheckValues = prefs.getStringList('checkValues');
+    final savedSwitchValues = prefs.getStringList('switchValues');
 
     if (medicineList != null) {
       setState(() {
         medicines = medicineList
             .map((item) => Medicine.fromJson(jsonDecode(item)))
             .toList();
-        switchValues = List<bool>.generate(medicines.length, (index) => true);
+        switchValues = savedSwitchValues != null
+            ? savedSwitchValues.map((value) => value == 'true').toList()
+            : List<bool>.generate(medicines.length, (index) => true);
         checkValues =
             savedCheckValues?.map((value) => value == 'true').toList() ??
                 List<bool>.generate(medicines.length, (index) => false);
@@ -86,7 +91,7 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
         }
 
         temporaryLocks =
-        List<bool>.generate(medicines.length, (index) => false);
+            List<bool>.generate(medicines.length, (index) => false);
 
         for (int i = 0; i < medicines.length; i++) {
           LocalNotificationService.showScheduledNotification(
@@ -103,7 +108,7 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
   Future<void> saveMedicines() async {
     final prefs = await SharedPreferences.getInstance();
     final medicineList =
-    medicines.map((medicine) => jsonEncode(medicine.toJson())).toList();
+        medicines.map((medicine) => jsonEncode(medicine.toJson())).toList();
     await prefs.setStringList('medicines', medicineList);
 
     final checkedMedicineList = checkedMedicines
@@ -114,8 +119,12 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
     await prefs.setBool('isLocked', isLocked);
 
     final checkValuesAsString =
-    checkValues.map((value) => value.toString()).toList();
+        checkValues.map((value) => value.toString()).toList();
     await prefs.setStringList('checkValues', checkValuesAsString);
+
+    final switchValuesAsString =
+        switchValues.map((value) => value.toString()).toList();
+    await prefs.setStringList('switchValues', switchValuesAsString);
   }
 
   String getCurrentDay() {
@@ -127,7 +136,7 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
     final currentDay = getCurrentDay();
 
     final fontData =
-    await rootBundle.load('fonts/IBMPlexSansArabic-Regular.ttf');
+        await rootBundle.load('fonts/IBMPlexSansArabic-Regular.ttf');
     final arabicFont = pw.Font.ttf(fontData);
 
     final formattedMedicines = medicines.map((medicine) {
@@ -280,7 +289,7 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                 onTap: () async {
                   setState(() {
                     checkValues =
-                    List<bool>.generate(medicines.length, (index) => false);
+                        List<bool>.generate(medicines.length, (index) => false);
 
                     for (int i = 0; i < medicines.length; i++) {
                       medicines[i].checkedTime = null;
@@ -307,7 +316,7 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
         title: const Text(
           "Medicine Reminder",
           style:
-          TextStyle(color: Colors.lightGreen, fontWeight: FontWeight.bold),
+              TextStyle(color: Colors.lightGreen, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xff201f1d),
       ),
@@ -340,30 +349,30 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                     final medicine = medicines[index];
                     final checkedTime = medicine.checkedTime != null
                         ? DateFormat('h:mm a')
-                        .format(DateTime.parse(medicine.checkedTime!))
+                            .format(DateTime.parse(medicine.checkedTime!))
                         : 'Not checked';
                     return GestureDetector(
                       onTap: isLocked || temporaryLocks[index]
                           ? null
                           : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                AddMedicine(medicine: medicines[index]),
-                          ),
-                        ).then((result) {
-                          if (result != null && result is Medicine) {
-                            setState(() {
-                              medicines[index] = result;
-                              LocalNotificationService
-                                  .showScheduledNotification(
-                                  result.time, result.name);
-                            });
-                            saveMedicines();
-                          }
-                        });
-                      },
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      AddMedicine(medicine: medicines[index]),
+                                ),
+                              ).then((result) {
+                                if (result != null && result is Medicine) {
+                                  setState(() {
+                                    medicines[index] = result;
+                                    LocalNotificationService
+                                        .showScheduledNotification(
+                                            result.time, result.name);
+                                  });
+                                  saveMedicines();
+                                }
+                              });
+                            },
                       child: Card(
                         elevation: 0,
                         color: const Color(0xff201f1d),
@@ -393,9 +402,9 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                                       child: SingleChildScrollView(
                                         child: Column(
                                           mainAxisAlignment:
-                                          MainAxisAlignment.start,
+                                              MainAxisAlignment.start,
                                           crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               medicine.name,
@@ -422,10 +431,8 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                                     ),
                                   ),
                                   Column(
-                                    mainAxisAlignment:
-                                    MainAxisAlignment.start,
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.end,
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Switch(
                                         value: switchValues[index],
@@ -436,15 +443,16 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                                           if (val) {
                                             LocalNotificationService
                                                 .showScheduledNotification(
-                                                medicine.time,
-                                                medicine.name);
+                                                    medicine.time,
+                                                    medicine.name);
                                           } else {
                                             LocalNotificationService
                                                 .cancelNotification(
-                                                LocalNotificationService
-                                                    .notificationIds(
-                                                    medicine.name));
+                                                    LocalNotificationService
+                                                        .notificationIds(
+                                                            medicine.name));
                                           }
+                                          saveMedicines(); // Save switch state when it changes
                                         },
                                         activeColor: Colors.white,
                                         activeTrackColor: Colors.lightGreen,
@@ -454,36 +462,36 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                                         onChanged: temporaryLocks[index]
                                             ? null
                                             : (value) async {
-                                          setState(() {
-                                            checkValues[index] =
-                                                value ?? false;
-                                            if (value ?? false) {
-                                              temporaryLocks[index] = true;
-                                              Future.delayed(
-                                                  const Duration(
-                                                      seconds: 30),
-                                                      () {
-                                                    setState(() {
-                                                      medicines[index]
-                                                          .checkedTime =
-                                                          DateTime.now()
-                                                              .toString();
-                                                      checkedMedicines
-                                                          .add(medicine);
-                                                      temporaryLocks[index] =
-                                                      false;
-                                                      saveMedicines();
+                                                setState(() {
+                                                  checkValues[index] =
+                                                      value ?? false;
+                                                  if (value ?? false) {
+                                                    temporaryLocks[index] =
+                                                        true;
+                                                    Future.delayed(
+                                                        const Duration(
+                                                            seconds: 30), () {
+                                                      setState(() {
+                                                        medicines[index]
+                                                                .checkedTime =
+                                                            DateTime.now()
+                                                                .toString();
+                                                        checkedMedicines
+                                                            .add(medicine);
+                                                        temporaryLocks[index] =
+                                                            false;
+                                                        saveMedicines();
+                                                      });
                                                     });
-                                                  });
-                                            } else {
-                                              medicines[index]
-                                                  .checkedTime = null;
-                                              checkedMedicines
-                                                  .remove(medicine);
-                                              saveMedicines();
-                                            }
-                                          });
-                                        },
+                                                  } else {
+                                                    medicines[index]
+                                                        .checkedTime = null;
+                                                    checkedMedicines
+                                                        .remove(medicine);
+                                                    saveMedicines();
+                                                  }
+                                                });
+                                              },
                                         checkColor: Colors.white,
                                         side: const BorderSide(
                                             color: Colors.white),
@@ -495,21 +503,20 @@ class HomePageState extends State<HomePage> with SingleTickerProviderStateMixin 
                                         onPressed: temporaryLocks[index]
                                             ? null
                                             : () {
-                                          LocalNotificationService
-                                              .cancelNotification(
-                                              LocalNotificationService
-                                                  .notificationIds(
-                                                  medicine.name));
-                                          setState(() {
-                                            checkValues
-                                                .removeAt(index);
-                                            switchValues
-                                                .removeAt(index);
-                                            medicines.removeAt(index);
-                                            temporaryLocks.removeAt(index);
-                                          });
-                                          saveMedicines();
-                                        },
+                                                LocalNotificationService
+                                                    .cancelNotification(
+                                                        LocalNotificationService
+                                                            .notificationIds(
+                                                                medicine.name));
+                                                setState(() {
+                                                  checkValues.removeAt(index);
+                                                  switchValues.removeAt(index);
+                                                  medicines.removeAt(index);
+                                                  temporaryLocks
+                                                      .removeAt(index);
+                                                });
+                                                saveMedicines();
+                                              },
                                       ),
                                     ],
                                   ),
